@@ -214,13 +214,96 @@ std::string buildNewick(std::vector<std::array<int, 3>> M) {
 
 std::string toNewick(const std::vector<int> &v) { return buildNewick(getAncestry(v)); }
 
+void removeBranchLengthAnnotations(std::string &newick) {
+    std::regex pattern(":\\d+(\\.\\d+)?");
+    newick = std::regex_replace(newick, pattern, "");
+}
+
 void removeParentAnnotations(std::string &newick) {
-    std::regex pattern("\\)(\\d+)");
-    newick = std::regex_replace(newick, pattern, ")");
+    // std::regex pattern("\\)(\\d+)");
+    // newick = std::regex_replace(newick, pattern, ")");
+    // std::regex pattern("\\)([^,;\\(\\)]+)([\\(,;\\)])");
+    // newick = std::regex_replace(newick, pattern, ")$2");
+    std::regex pattern("\\)([^,;\\(\\)]+?)([\\(,;\\)])");
+    // newick = std::regex_replace(newick, pattern, ")$2");
+    while (std::regex_search(newick, pattern)) {
+        newick = std::regex_replace(newick, pattern, ")$2");
+    }
+}
+
+// void integerizeAndUpdateMapping(std::string &newick, std::map<std::string, std::string> &mapping,
+//                                 int &idx, char left_start, char left_end, char right_start,
+//                                 char right_end) {
+//     for (size_t i = 0; i < newick.length(); ++i) {
+//         if (newick[i] == left_start || right_start) {
+//             size_t j = i + 1;
+//             while (j < newick.length() && (newick[j] != left_start && newick[j] != left_end &&
+//                                            newick[j] != right_start && newick[j] != right_end)) {
+//                 ++j;
+//             }
+
+//             if (j != i + 1) {
+//                 std::string node = newick.substr(i + 1, j - i - 1);
+
+//                 if (mapping.find(node) == mapping.end()) {
+//                     mapping[std::to_string(idx)] = node;
+//                     newick.replace(i + 1, j - i - 1, std::to_string(idx));
+//                     ++idx;
+//                 }
+//             }
+//         }
+//     }
+// }
+
+std::map<std::string, std::string> integerizeChildNodes(std::string &newick) {
+    std::map<std::string, std::string> mapping;
+    int idx = 0;
+
+    char left_start = '(', left_end = ',', right_start = ',', right_end = ')', newick_end = ';';
+
+    for (size_t i = 0; i < newick.length(); ++i) {
+        if (newick[i] == left_start || right_start) {
+            size_t j = i + 1;
+            while (j < newick.length() &&
+                   (newick[j] != left_start && newick[j] != left_end && newick[j] != right_start &&
+                    newick[j] != right_end && newick[j] != newick_end)) {
+                ++j;
+            }
+
+            if (j != i + 1) {
+                std::string node = newick.substr(i + 1, j - i - 1);
+
+                if (mapping.find(node) == mapping.end()) {
+                    mapping[std::to_string(idx)] = node;
+                    newick.replace(i + 1, j - i - 1, std::to_string(idx));
+                    ++idx;
+                }
+            }
+        }
+    }
+
+    return mapping;
 }
 
 int getNumLeavesFromNewick(const std::string &newick) {
-    return -1;  // TODO
+    // Adapted from https://www.geeksforgeeks.org/extract-maximum-numeric-value-given-string/
+    int num = 0, min_val = 0, max_val = 0;
+
+    for (int i = 0; i < newick.length(); i++) {
+        if (newick[i] >= '0' && newick[i] <= '9') {
+            // Convert and adjust if consecutive
+            num = num * 10 + (newick[i] - '0');
+        } else {
+            // Update max
+            max_val = std::max(max_val, num);
+            min_val = std::min(min_val, num);
+
+            // Reset the number
+            num = 0;
+        }
+    }
+
+    return std::max(max_val, num) - std::min(min_val, num) + 1;  // TODO
 }
 
 // Copyright Contributors to the Pystring project.
@@ -257,7 +340,7 @@ void rpartition(const std::string &str, const std::string &sep, std::vector<std:
     }
 }
 
-std::pair<int, int> findLeftLeaf(std::string nw, const std::vector<int> &labels,
+std::pair<int, int> findLeftLeaf(std::string newick, const std::vector<int> &labels,
                                  const std::vector<bool> &processed, int num_leaves) {
     std::string left_leaf;
     int index_i = -1;
@@ -267,18 +350,18 @@ std::pair<int, int> findLeftLeaf(std::string nw, const std::vector<int> &labels,
             // Find whether the node with the current label has a sister node
             std::string label = std::to_string(labels[num_leaves - i - 1]);
 
-            if (nw.find("(" + label + ",") != std::string::npos) {
+            if (newick.find("(" + label + ",") != std::string::npos) {
                 // Is label on the left of a newick pair?
                 std::string left_sep = "(" + label + ",";
                 std::string right_sep = ")";
-                left_leaf = rpartition(nw, left_sep)[2];
+                left_leaf = rpartition(newick, left_sep)[2];
                 left_leaf = partition(left_leaf, right_sep)[0];
-            } else if (nw.find("," + label + ")") != std::string::npos) {
+            } else if (newick.find("," + label + ")") != std::string::npos) {
                 // Is label on the right of a newick pair?
                 std::string left_sep = "(";
                 std::string right_sep = "," + label + ")";
 
-                left_leaf = partition(nw, right_sep)[0];
+                left_leaf = partition(newick, right_sep)[0];
                 left_leaf = rpartition(left_leaf, left_sep)[2];
             } else {
                 // Otherwise --> it has no sister node No sister node --> we can skip it
@@ -311,34 +394,28 @@ void updateVmin(std::vector<int> &vmin, int right_leaf, int num_leaves,
     }
 }
 
-void updateNewick(std::string &nw, int left_leaf_ind, int left_leaf, int right_leaf,
+void updateNewick(std::string &newick, int left_leaf_ind, int left_leaf, int right_leaf,
                   const std::vector<int> &labels) {
     std::string old_pattern =
         "(" + std::to_string(left_leaf) + "," + std::to_string(labels[right_leaf]) + ")";
 
     std::string new_pattern = std::to_string(labels[left_leaf_ind]);
 
-    size_t pos = nw.find(old_pattern);
+    size_t pos = newick.find(old_pattern);
     if (pos != std::string::npos) {
-        nw.replace(pos, old_pattern.length(), new_pattern);
+        newick.replace(pos, old_pattern.length(), new_pattern);
     } else {
         old_pattern =
             "(" + std::to_string(labels[right_leaf]) + "," + std::to_string(left_leaf) + ")";
         // Replace the old pattern with the new pattern
-        pos = nw.find(old_pattern);
+        pos = newick.find(old_pattern);
         if (pos != std::string::npos) {
-            nw.replace(pos, old_pattern.length(), new_pattern);
+            newick.replace(pos, old_pattern.length(), new_pattern);
         }
     }
 }
 
-std::vector<int> newick2v(std::string newick, int num_leaves) {
-    removeParentAnnotations(newick);
-
-    if (num_leaves == -1) {
-        num_leaves = getNumLeavesFromNewick(newick);
-    }
-
+std::vector<int> toVector(std::string newick, int num_leaves) {
     std::vector<int> v(num_leaves, 0);
     std::vector<bool> processed(num_leaves, false);
     std::vector<int> vmin(num_leaves, 0);
@@ -377,4 +454,40 @@ std::vector<int> newick2v(std::string newick, int num_leaves) {
     }
 
     return v;
+}
+
+void processNewick(std::string &newick) {
+    removeBranchLengthAnnotations(newick);
+    removeParentAnnotations(newick);
+}
+
+Newick2VResult newick2v(std::string &newick, int num_leaves) {
+    processNewick(newick);
+
+    if (num_leaves == -1) {
+        num_leaves = getNumLeavesFromNewick(newick);
+    }
+
+    std::vector<int> v = toVector(newick, num_leaves);
+
+    Newick2VResult res = {v, num_leaves};
+
+    return res;
+}
+
+Newick2VResult newick2vWithMapping(std::string &newick, int num_leaves) {
+    // Newick2VResult res;
+    processNewick(newick);
+
+    if (num_leaves == -1) {
+        num_leaves = getNumLeavesFromNewick(newick);
+    }
+
+    std::map<std::string, std::string> mapping = integerizeChildNodes(newick);
+
+    std::vector<int> v = toVector(newick, num_leaves);
+
+    Newick2VResult res = {v, num_leaves, mapping};
+
+    return res;
 }

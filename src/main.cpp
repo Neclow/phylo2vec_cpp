@@ -37,6 +37,7 @@ std::map<int, std::string> convertMapping(std::map<std::string, std::string> map
 }
 
 void doToNewick(std::vector<int> v) {
+    check_v(v);
     std::string newick = toNewick(v);
     std::cout << "Newick string: " << newick << std::endl;
 }

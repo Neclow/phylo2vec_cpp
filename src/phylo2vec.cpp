@@ -1,5 +1,7 @@
 #include "phylo2vec.hpp"
 
+// #include <omp.h>
+
 #include <algorithm>
 #include <iostream>
 #include <random>
@@ -9,10 +11,10 @@
 
 std::vector<int> sample(const int &k) {
     std::vector<int> v;
-    std::random_device rd;   // a seed source for the random number engine
-    std::mt19937 gen(rd());  // mersenne_twister_engine seeded with rd()
+    std::random_device rd;
+    std::mt19937 gen(rd());
 
-    for (int i = 0; i < k; ++i) {
+    for (std::size_t i = 0; i < k; ++i) {
         std::uniform_int_distribution<> distrib(0, 2 * i);
         v.push_back(distrib(gen));
     }
@@ -21,9 +23,9 @@ std::vector<int> sample(const int &k) {
 }
 
 void check_v(const std::vector<int> &v) {
-    const std::size_t k = v.size();
+    // check that v is valid: 0 <= v[i] <= 2i
 
-    // check that v is valid
+    const std::size_t k = v.size();
     for (std::size_t i = 0; i < k; ++i) {
         if (v[i] > 2 * i) {
             std::ostringstream oss;
@@ -65,12 +67,8 @@ void flip(T &vec, int axis) {
 std::vector<std::vector<int>> initViewMatrix(const int &k) {
     std::vector<std::vector<int>> labels(k, std::vector<int>(k + 1, 0));
     for (std::size_t i = 0; i < k; ++i) {
-        for (std::size_t j = 0; j <= k; ++j) {
-            if (i >= j) {
-                labels[i][j] = j;
-            } else {
-                labels[i][j] = 0;
-            }
+        for (std::size_t j = 0; j <= i; ++j) {
+            labels[i][j] = j;
         }
     }
 
@@ -78,8 +76,6 @@ std::vector<std::vector<int>> initViewMatrix(const int &k) {
 }
 
 std::vector<std::array<int, 3>> getAncestry(const std::vector<int> &v) {
-    check_v(v);
-
     const std::size_t k = v.size();
 
     // init "view" matrix
@@ -92,22 +88,29 @@ std::vector<std::array<int, 3>> getAncestry(const std::vector<int> &v) {
     std::vector<std::array<int, 3>> M(k, {{0, 0, 0}});
 
     for (std::size_t step = 0; step < k; ++step) {
-        // cond vector
-        std::vector<bool> cond(k);
+        std::vector<int> row_maxes(k);
+
+        int n = -1;
 
         for (int row = 0; row < k; ++row) {
-            int row_max = *std::max_element(labels[row].begin(), labels[row].end());
-            cond[k - row - 1] = v[row] <= row_max && not_processed[row];
+            int row_max = 0;
+            for (std::size_t col = 0; col <= row; ++col) {
+                row_max = std::max(row_max, labels[row][col]);
+            }
+            row_maxes[row] = row_max;
+
+            if (v[row] <= row_max && not_processed[row]) {
+                n = row;
+            }
         }
 
-        // find n
-        auto cond_last_argmax = std::max_element(cond.begin(), cond.end());
-
-        int n = k - 1 - std::distance(cond.begin(), cond_last_argmax);
+        if (n == -1) {
+            throw std::out_of_range("n should be a positive index.");
+        }
 
         // find m
         int m = -1;
-        for (std::size_t i = 0; i < k; ++i) {
+        for (int i = 0; i < k; ++i) {
             if (labels[n][i] == v[n]) {
                 m = i;
                 break;
@@ -123,8 +126,8 @@ std::vector<std::array<int, 3>> getAncestry(const std::vector<int> &v) {
         M[step][1] = labels_last_row[n + 1];
 
         // Update the view matrix
-        for (std::size_t i = n; i < k; ++i) {
-            labels[i][m] = *std::max_element(labels[i].begin(), labels[i].end()) + 1;
+        for (std::size_t row = n; row < k; ++row) {
+            labels[row][m] = row_maxes[row] + 1;
         }
 
         labels_last_row[m] = *std::max_element(labels_last_row.begin(), labels_last_row.end()) + 1;
@@ -220,40 +223,11 @@ void removeBranchLengthAnnotations(std::string &newick) {
 }
 
 void removeParentAnnotations(std::string &newick) {
-    // std::regex pattern("\\)(\\d+)");
-    // newick = std::regex_replace(newick, pattern, ")");
-    // std::regex pattern("\\)([^,;\\(\\)]+)([\\(,;\\)])");
-    // newick = std::regex_replace(newick, pattern, ")$2");
     std::regex pattern("\\)([^,;\\(\\)]+?)([\\(,;\\)])");
-    // newick = std::regex_replace(newick, pattern, ")$2");
     while (std::regex_search(newick, pattern)) {
         newick = std::regex_replace(newick, pattern, ")$2");
     }
 }
-
-// void integerizeAndUpdateMapping(std::string &newick, std::map<std::string, std::string> &mapping,
-//                                 int &idx, char left_start, char left_end, char right_start,
-//                                 char right_end) {
-//     for (size_t i = 0; i < newick.length(); ++i) {
-//         if (newick[i] == left_start || right_start) {
-//             size_t j = i + 1;
-//             while (j < newick.length() && (newick[j] != left_start && newick[j] != left_end &&
-//                                            newick[j] != right_start && newick[j] != right_end)) {
-//                 ++j;
-//             }
-
-//             if (j != i + 1) {
-//                 std::string node = newick.substr(i + 1, j - i - 1);
-
-//                 if (mapping.find(node) == mapping.end()) {
-//                     mapping[std::to_string(idx)] = node;
-//                     newick.replace(i + 1, j - i - 1, std::to_string(idx));
-//                     ++idx;
-//                 }
-//             }
-//         }
-//     }
-// }
 
 std::map<std::string, std::string> integerizeChildNodes(std::string &newick) {
     std::map<std::string, std::string> mapping;
@@ -261,7 +235,7 @@ std::map<std::string, std::string> integerizeChildNodes(std::string &newick) {
 
     char left_start = '(', left_end = ',', right_start = ',', right_end = ')', newick_end = ';';
 
-    for (size_t i = 0; i < newick.length(); ++i) {
+    for (std::size_t i = 0; i < newick.length(); ++i) {
         if (newick[i] == left_start || right_start) {
             size_t j = i + 1;
             while (j < newick.length() &&
@@ -289,7 +263,7 @@ int getNumLeavesFromNewick(const std::string &newick) {
     // Adapted from https://www.geeksforgeeks.org/extract-maximum-numeric-value-given-string/
     int num = 0, min_val = 0, max_val = 0;
 
-    for (int i = 0; i < newick.length(); i++) {
+    for (std::size_t i = 0; i < newick.length(); i++) {
         if (newick[i] >= '0' && newick[i] <= '9') {
             // Convert and adjust if consecutive
             num = num * 10 + (newick[i] - '0');

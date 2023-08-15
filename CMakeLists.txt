@@ -22,41 +22,41 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cxxopts)
 
-# Add your source files
+# # Find OpenMP package
+# find_package(OpenMP REQUIRED)
+
+# # Set compiler flags for OpenMP
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+
+# Source files
 set(SOURCES
     src/phylo2vec.cpp
     src/main.cpp
 )
 
-# Add test source file
+# Test
 set(TEST_SOURCES
     src/phylo2vec.cpp
     test/phylo2vec_test.cpp
 )
 
-# Create the main executable
+# Main executable
 add_executable(phylo2vec ${SOURCES})
 
-# Add include directories
+# Include directories
 target_include_directories(phylo2vec PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Link against cxxopts
-target_link_libraries(phylo2vec PRIVATE cxxopts::cxxopts)
+target_link_libraries(phylo2vec PRIVATE cxxopts::cxxopts) ## OpenMP::OpenMP_CXX)
 
-# Add other dependencies if necessary
-# target_link_libraries(phylo2vec PRIVATE some_library)
-
-# Install target (optional)
-# install(TARGETS phylo2vec DESTINATION bin)
-
-# Add the test executable
+# Test executable
 add_executable(phylo2vec_test ${TEST_SOURCES})
 
 # Link against Google Test and Google Mock
 target_link_libraries(phylo2vec_test PRIVATE gtest_main)
 
 # Optionally, add a test target (for running tests using CTest)
-include(CTest)
+# include(CTest)
 
-# Add tests (adjust as needed)
+# Add tests
 add_test(NAME phylo2vec_test COMMAND phylo2vec_test)

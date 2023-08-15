@@ -66,4 +66,4 @@ Example usage of toVector:
 * The file ```100trees.txt``` is an anonmyised subset of [TimeTree](http://www.timetree.org/) trees adapted from: https://datadryad.org/stash/dataset/doi:10.5061/dryad.2fqz612vg. Kudos to [Mark Khurana](https://forskning.ku.dk/soeg/result/?pure=da%2Fpersons%2Fmark-poulsen-khurana(171ece7e-9567-4d48-8cf9-959b57de57c8).html) for the dataset
 
 ## Note
-* At least half of this repo was coded on a Samsung A40 using [JDoodle](jdoodle.com), that should probably deserve a star :)
+* At least half of this repo was coded on a Samsung A40 using [JDoodle](https://jdoodle.com), that should probably deserve a star :)

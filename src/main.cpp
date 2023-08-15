@@ -11,9 +11,9 @@ cxxopts::Options get_options() {
     // clang-format off
     options.add_options()
         ("h,help", "Show help")
-        ("toNewick", "Convert to Newick format. Example input: 0 1 4",cxxopts::value<std::vector<int>>())
+        ("toNewick", "Convert to Newick format. Example input: 0 1 4", cxxopts::value<std::vector<int>>())
         ("toVector", "Convert to integer vector. Example input: \"(((2,1)4,0)5,3)6;\"", cxxopts::value<std::string>())
-        ("with_mapping", "For Newicks that do not only contain digits.", cxxopts::value<bool>()->default_value("false"))
+        ("with_mapping", "For Newicks that do not only contain digits, to use with toVector. Example input: \"(((((((tip_0:1.44,tip_1:1.44)8042:0.46,(tip_2:1.5,tip_3:1.5)8043:0.4)8044:0.3,(tip_4:1.51,tip_5:1.51)8045:0.69)8046:0.4,tip_6:2.6)8047:1.05,tip_7:3.65)8048:0.5,(((tip_8:0.72,tip_9:0.72)8049:0.28,tip_10:1)8050:1.56,tip_11:2.56)8051:1.59)8052:1.96,tip_12:6.11)8053:0;\"", cxxopts::value<bool>()->default_value("false"))
         ("num_leaves", "Number of leaves (optional, but recommended when using toVector)", cxxopts::value<int>());
     // clang-format on
 
